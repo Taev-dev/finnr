@@ -1,0 +1,3 @@
+package_name = "finnr"
+package_desc = "A high-quality, typed package for financial datatypes in python"
+min_python_version = "3.12"
