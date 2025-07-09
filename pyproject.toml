@@ -7,6 +7,7 @@ requires-python = ">= 3.12"
 readme = "README.md"
 
 dependencies = [
+    "docnote>=2025.5.26.1",
 ]
 
 [dependency-groups]
@@ -19,7 +20,10 @@ lint = [
 ]
 
 repl = [
-    "wat-inspector >= 0.3.2"
+    "wat-inspector >= 0.3.2",
+    "finnr_codegen",
+    "whenever>=0.8.6",
+    "pycountry>=24.6.1",
 ]
 
 [tool.uv]
@@ -27,6 +31,7 @@ default-groups = ["test", "lint", "repl"]
 
 [tool.uv.sources]
 finnr_testutils = { workspace = true }
+finnr_codegen = { workspace = true }
 
 [tool.uv.workspace]
 members = ["sidecars_py/*"]
@@ -90,15 +95,17 @@ section-order = [
     "third-party",
     "first-party",
     "local-folder",
-    "testdeps",
+    "sidecars",
 ]
 known-first-party  = [
-    "finnr"
+    "finnr",
 ]
 
 [tool.ruff.lint.isort.sections]
-testdeps = [
-    "finnr_testutils",]
+sidecars = [
+    "finnr_testutils",
+    "finnr_codegen"
+]
 
 [tool.ruff.lint.pylint]
 max-args = 7

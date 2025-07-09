@@ -1,0 +1,13 @@
+> Data sources
+    ++  [[Wikipedia, ISO 4217](https://en.wikipedia.org/wiki/ISO_4217)].
+        Used for best-effort additional data on historical currencies.
+        Retrieved:
+        ++  2025-02-21
+    ++  [[Six group, Financial Data Standards](https://www.six-group.com/en/products-services/financial-information/market-reference-data/data-standards.html)]
+        Used as primary source for active and historical currencies (list one,
+        list three).
+        Retrieved:
+        ++  2025-02-21
+
+> Changelog
+    ++  2025-07-08: mass import based on cleaned-up six group / wikipedia data
