@@ -2,3 +2,73 @@
 description: 'A high-quality, typed package for financial datatypes in python'
 <
 
+> Finnr at its simplest
+    For simple use cases, finnr provides a ``Money`` type, along with an
+    up-to-date copy of ISO-4217 currency codes (as well as historical
+    currencies), and concise syntax for creating new ``Money`` instances:
+
+    > A simple finnr example
+    __embed__: 'code/python'
+        >>> from decimal import Decimal
+        >>> from finnr.iso import mint
+        >>> mint
+        CurrencySet({...})
+
+        >>> mint(Decimal('1.23'), 'USD')
+        Money(
+            amount=Decimal('1.23'),
+            currency=Currency(
+                code_alpha3='USD',
+                code_num=840,
+                minor_unit_denominator=100,
+                ...))
+
+        >>> mint(100, 'EUR')
+        Money(
+            amount=Decimal('100'),
+            currency=Currency(
+                code_alpha3='EUR',
+                code_num=978,
+                minor_unit_denominator=100,
+                ...))
+
+        >>> mint('12345.6', 'MRU')
+        Money(
+            amount=Decimal('12345.6'),
+            currency=Currency(
+                code_alpha3='MRU',
+                code_num=929,
+                minor_unit_denominator=5,
+                ...))
+
+    ``Money`` instances provide safe math operations, reducing the likelihood
+    of bugs resulting from tracking currency information separately from the
+    amounts (for example, accidentally adding EUR to USD).
+
+    > Money math
+    __embed__: 'code/python'
+        >>> from finnr.iso import mint
+
+        >>> mint(100, 'USD') + mint(100 'USD')
+        Money(amount=Decimal('200'), currency=Currency(code_alpha3='USD', ...))
+        >>> mint(100, 'EUR') * 5
+        Money(amount=Decimal('500'), currency=Currency(code_alpha3='EUR', ...))
+
+        >>> mint(100, 'USD') + mint(100 'EUR')
+        Traceback (most recent call last):
+          ...
+        MismatchedCurrency: ('USD', 'EUR')
+
+        >>> mint(100, 'EUR') + 5
+        Traceback (most recent call last):
+          ...
+        MoneyRequired
+
+        >>> mint(100, 'EUR') * mint(100, 'EUR')
+        Traceback (most recent call last):
+          ...
+        ScalarRequired
+
+    If desired, finnr can support custom currencies, by creating your own
+    ``CurrencySet`` objects.
+

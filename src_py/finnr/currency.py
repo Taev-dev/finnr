@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field
-from pathlib import Path
+from decimal import ROUND_HALF_UP
+from decimal import Decimal
+from decimal import localcontext
+from sys import float_info
 from typing import Annotated
 from typing import Literal
+from typing import cast
 from typing import overload
 
 from docnote import ClcNote
-from whenever import Date
-from whenever import YearMonth
 
 from finnr._types import DateLike
 from finnr._types import Singleton
+from finnr.money import Money
 
 
 @dataclass(slots=True, frozen=True)
@@ -21,8 +25,10 @@ class Currency:
         str,
         ClcNote('''For all ISO currencies, this is the ISO 4217 alpha-3
             currency code. If implementing custom currencies as part of your
-            own ``CurrencySet``, this can be anything you want, but it must
-            uniquely identify the currency.''')]
+            own ``CurrencySet``, this can be anything you want, but:
+            ++  it must uniquely identify the currency
+            ++  it must be uppercase-only for ``CurrencySet`` to find it in
+                any of its lookup functions.''')]
 
     code_num: Annotated[
         int,
@@ -108,17 +114,204 @@ class Currency:
 
     @property
     def is_active(self) -> bool:
-        raise NotImplementedError
+        """Returns ``True`` if, and only if, the currency is currently
+        active -- ie, if ``approx_active_until`` is None. Note that this
+        will return **``False``** if ``approx_active_until`` is unknown.
+        """
+        return self.approx_active_until is None
 
-    def was_active_at(self, date: DateLike) -> bool:
-        raise NotImplementedError
+    # TODO (Note that this gets a bit complicated due to Unknowns):
+    # def was_active_at(self, date: DateLike) -> bool:
+
+    _metadata: _CurrencyMetadata = field(init=False, compare=False, repr=False)
+    def __post_init__(self):
+        if (
+            self.minor_unit_denominator is None
+            or self.minor_unit_denominator is Singleton.UNKNOWN
+        ):
+            minor_quantizor = None
+            is_decimal = True
+
+        else:
+            minor_quantizor = Decimal(1) / self.minor_unit_denominator
+            is_decimal = not bool(self.minor_unit_denominator % 10)
+
+        object.__setattr__(self, '_metadata', _CurrencyMetadata(
+            minor_quantizor, is_decimal))
+
+
+@dataclass(slots=True)
+class _CurrencyMetadata:
+    """Currency metadata is calculated on currency instances as a
+    performance optimization (and also, because it makes the logic
+    cleaner).
+    """
+    minor_quantizor: Decimal | None
+    is_decimal: bool
 
 
 class CurrencySet(frozenset[Currency]):
-    # TODO: think about having additional methods for finding, for example,
-    # based on the underlying entity
+    """``CurrencySet``s are a ``frozenset[Currency]`` subclass that
+    contain convenience methods for finding currencies and creating
+    ``Money`` objects based on the currency codes known to the
+    ``CurrencySet``.
+
+    If desired, you can implement custom currencies simply by creating
+    your own ``CurrencySet`` with whatever ``Currency`` objects you
+    want. Note that all ``Currency`` objects within a ``CurrencySet``
+    **must** have unique alpha and numeric codes.
+    """
+    _by_alpha3: dict[str, Currency]
+    _by_num: dict[int, Currency]
+
+    def __init__(self, *args, **kwargs):
+        self._by_alpha3 = alpha_lookup = {}
+        self._by_num = num_lookup = {}
+
+        for currency in self:
+            if currency.code_alpha3 in alpha_lookup:
+                raise ValueError(
+                    'Duplicate currency code!', currency.code_alpha3)
+            if currency.code_num in num_lookup:
+                raise ValueError(
+                    'Duplicate currency code!', currency.code_alpha3)
+
+            alpha_lookup[currency.code_alpha3] = currency
+            num_lookup[currency.code_num] = currency
+
+    def __call__(
+            self,
+            amount: Decimal | float | str | tuple[int, Sequence[int], int],
+            code_alpha3: str,
+            *,
+            heal_float: Annotated[
+                bool,
+                ClcNote('''If ``True`` (the default), this will truncate the
+                    resulting decimal amount to the maximum safe float value,
+                    as determined by ``sys.float_info.dig``. Note that this
+                    only has an effect if the passed ``amount`` is a float!
+                    ''')
+                ] = True,
+            quantize_to_minor: Annotated[
+                bool,
+                ClcNote('''If ``True`` (**not** the default), this will
+                    immediately round or "pad" (ie, quantize) the resulting
+                    decimal amount to a single unit of the minor unit of the
+                    currency. For example, ``12.345 EUR`` would be rounded to
+                    ``12.35 EUR``, or ``1.2 EUR`` "padded" to ``1.20 EUR``.
+                    ''')
+                ] = False,
+            rounding: Annotated[
+                str,
+                ClcNote('''If ``quantize_to_minor`` is ``True``, this can be
+                    used to control the rounding behavior of the quantization
+                    operation.
+
+                    Otherwise, this is ignored.''')
+                ] = ROUND_HALF_UP
+            ) -> Money:
+        """
+        """
+        try:
+            currency = self._by_alpha3[code_alpha3.upper()]
+        except KeyError as exc:
+            exc.add_note('Invalid currency code for this CurrencySet!')
+            raise exc
+
+        if heal_float and isinstance(amount, float):
+            dec_amount = _heal_float(Decimal(amount))
+        elif isinstance(amount, Decimal):
+            dec_amount = amount
+        else:
+            dec_amount = Decimal(amount)
+
+        if quantize_to_minor:
+            currency_metadata = currency._metadata
+            # If this is None, it means either that the currency is continuous
+            # (eg a fictional unit of account), or that the minor unit is
+            # unknown; in both of those cases, we'll skip rounding and simply
+            # use the original dec_amount. Otherwise, we've work to do!
+            if currency_metadata.minor_quantizor is not None:
+                dec_amount = dec_amount.quantize(
+                    currency_metadata.minor_quantizor,
+                    rounding=rounding)
+
+                if not currency_metadata.is_decimal:
+                    # Note that this must be int, or the minor_quantizor
+                    # would be None.
+                    minor_denom = cast(int, currency.minor_unit_denominator)
+                    # This seems a little aroundabout, but we're doing it this
+                    # way so that we can respect the passed rounding behavior.
+                    # Otherwise it would probably be faster to do this via mod.
+                    shifted_amount = dec_amount * minor_denom
+                    with localcontext() as ctx:
+                        ctx.rounding = rounding
+                        # Note that the zero here is necessary to keep it a
+                        # decimal, otherwise we'll end up with an int
+                        rounded_shifted_amount = round(shifted_amount, 0)
+
+                    dec_amount = rounded_shifted_amount / minor_denom
+
+        return Money(
+            amount=dec_amount,
+            currency=currency)
 
     @overload
-    def get(self, code_alpha3: str, default=None) -> Currency | None: ...
+    def get(self, code: str, default=None) -> Currency | None: ...
     @overload
-    def get(self, code_num: int, default=None) -> Currency | None: ...
+    def get(self, code: int, default=None) -> Currency | None: ...
+
+    def get(self, code: str | int, default=None) -> Currency | None:
+        """Finds a currency from the currency set based on either the
+        alpha3 or numeric code. This has the same semantics as
+        ``dict.get``, in that it will return the provided ``default``
+        value if no match is found (and if no explicit default is
+        passed, this will return ``None``).
+        """
+        if isinstance(code, str):
+            return self._by_alpha3.get(code.upper(), default)
+        elif isinstance(code, int):
+            return self._by_num.get(code, default)
+        else:
+            raise TypeError('Code must be either string or integer!', code)
+
+
+def heal_float(dec: Decimal) -> Decimal:
+    """Given a decimal constructed from a float, **truncates** it to
+    the maximum safe precision of a float, as determined by
+    ``sys.float_info.dig``.
+
+    Note: if truncation was required, this returns a new decimal object.
+    If no trunction was required, it will return the original decimal
+    object back.
+    """
+    max_safe_digits = float_info.dig
+    sign, digits, exp = dec.as_tuple()
+    digit_count = len(digits)
+
+    if digit_count > max_safe_digits:
+        if isinstance(exp, int):
+            return Decimal((
+                sign,
+                digits[:max_safe_digits],
+                exp + (digit_count - max_safe_digits)))
+
+        # This is impossible, but it solves type checking problems.
+        # Details: exponent can return 'F' (+/- infinity), 'n' (NaN), or
+        # 'N' (sNaN) -- or an integer, which is handled above. However:
+        # ++  all of these values are safe from floats as-is
+        # ++  even if they weren't, the number of digits is zero, so it's
+        #     always more than max_safe_digits
+        # So even if you actually do have Decimal(float('inf')) -- first of
+        # all, congrats on the infinite money hack, but more importantly --
+        # we **still** won't reach this code branch.
+        else:
+            return dec
+
+    else:
+        return dec
+
+
+# just so that we have an alternate name in places where we want to take
+# ``heal_float`` as an argument
+_heal_float = heal_float
