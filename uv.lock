@@ -31,6 +31,7 @@ lint = [
 repl = [
     { name = "finnr-codegen" },
     { name = "pycountry" },
+    { name = "templatey" },
     { name = "wat-inspector" },
     { name = "whenever" },
 ]
@@ -46,6 +47,7 @@ lint = [{ name = "ruff", specifier = ">=0.3.3" }]
 repl = [
     { name = "finnr-codegen", editable = "sidecars_py/finnr_codegen" },
     { name = "pycountry", specifier = ">=24.6.1" },
+    { name = "templatey", specifier = ">=2025.7.3.0" },
     { name = "wat-inspector", specifier = ">=0.3.2" },
     { name = "whenever", specifier = ">=0.8.6" },
 ]
@@ -91,6 +93,28 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/51/de/8589fa724590faa057e5a6d171e7f2f6cffe3287406ef40e49c682c07d89/ruff-0.12.2-py3-none-win32.whl", hash = "sha256:369ffb69b70cd55b6c3fc453b9492d98aed98062db9fec828cdfd069555f5f1a", size = 10523823 },
     { url = "https://files.pythonhosted.org/packages/94/47/8abf129102ae4c90cba0c2199a1a9b0fa896f6f806238d6f8c14448cc748/ruff-0.12.2-py3-none-win_amd64.whl", hash = "sha256:dca8a3b6d6dc9810ed8f328d406516bf4d660c00caeaef36eb831cf4871b0639", size = 11629831 },
     { url = "https://files.pythonhosted.org/packages/e2/1f/72d2946e3cc7456bb837e88000eb3437e55f80db339c840c04015a11115d/ruff-0.12.2-py3-none-win_arm64.whl", hash = "sha256:48d6c6bfb4761df68bc05ae630e24f506755e702d4fb08f08460be778c7ccb12", size = 10735334 },
+]
+
+[[package]]
+name = "templatey"
+version = "2025.7.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "docnote" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/92/1c/aec53efd57cfb56366009ae42d6b980bf3951a68c6d63198e1cf7dc36ced/templatey-2025.7.3.0.tar.gz", hash = "sha256:0c9ec325203867e511ca54d9652bbe75795251b1af7c6657980a7683a8a52bd3", size = 56619 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8b/4b/1671fdee9b35fb698db16b18d2c201c7956c5399a620c9f681668a9bf971/templatey-2025.7.3.0-py3-none-any.whl", hash = "sha256:4f23d876eedee4f4b8b2994157d3a4ca830def698450937206621038404f8d0e", size = 64228 },
+]
+
+[[package]]
+name = "typing-extensions"
+version = "4.14.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/98/5a/da40306b885cc8c09109dc2e1abd358d5684b1425678151cdaed4731c822/typing_extensions-4.14.1.tar.gz", hash = "sha256:38b39f4aeeab64884ce9f74c94263ef78f3c22467c8724005483154c26648d36", size = 107673 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b5/00/d631e67a838026495268c2f6884f3711a15a9a2a96cd244fdaea53b823fb/typing_extensions-4.14.1-py3-none-any.whl", hash = "sha256:d1e1e3b58374dc93031d6eda2420a48ea44a36c2b4766a4fdeb3710755731d76", size = 43906 },
 ]
 
 [[package]]

@@ -1,0 +1,6 @@
+> Finnr contributing guide
+<
+
+> How to run codegen
+    If you need to update the iso file, the command to do so is easy. Simply
+    run ``uv run python -m finnr_codegen``.

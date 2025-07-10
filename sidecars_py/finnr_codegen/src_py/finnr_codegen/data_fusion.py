@@ -3,6 +3,7 @@ from __future__ import annotations
 import calendar
 import logging
 from collections import defaultdict
+from dataclasses import replace as dc_replace
 from typing import Literal
 from typing import cast
 
@@ -68,7 +69,7 @@ HARDCODED_ENTITIES = {
 }
 
 
-def fuse_src_data() -> list[Currency]:
+def fuse_src_data() -> dict[str, Currency]:
     list1_infos: dict[str, list[CurrencyInfoRow]] = defaultdict(list)
     list3_infos: dict[str, list[CurrencyInfoRow]] = defaultdict(list)
     wiki_4217_infos: dict[str, list[CurrencyInfoRow]] = defaultdict(list)
@@ -92,11 +93,28 @@ def fuse_src_data() -> list[Currency]:
             logger.warning(
                 'Discarding wiki4217 row with missing alpha3: %s', info_row)
 
-    results: list[Currency] = []
-    results.extend(_fuse_active_currencies(list1_infos))
-    results.extend(_fuse_historical_currencies(list3_infos, wiki_4217_infos))
+    fused: list[Currency] = []
+    # Order here is important for deduplication!
+    fused.extend(_fuse_active_currencies(list1_infos))
+    fused.extend(_fuse_historical_currencies(list3_infos, wiki_4217_infos))
 
-    return results
+    # Note that, because the six group data is oriented towards ENTITIES and
+    # not currencies, there are some currencies (ex EUR) that appear in both
+    # historical and active data (because the entity ceased to exist, ex CSXX).
+    deduped: dict[str, Currency] = {}
+    # Note that, for the dates to be correct, this relies upon the ordering
+    # of the calls to fuse.
+    for currency in fused:
+        if currency.code_alpha3 in deduped:
+            existing_currency = deduped[currency.code_alpha3]
+            deduped[currency.code_alpha3] = dc_replace(
+                existing_currency,
+                entities=frozenset(
+                    existing_currency.entities | currency.entities))
+        else:
+            deduped[currency.code_alpha3] = currency
+
+    return deduped
 
 
 def _fuse_active_currencies(
