@@ -22,7 +22,6 @@ collect_ignore_glob = []
 def pytest_configure(config):
     if not config.getoption('--run-e2e'):
         collect_ignore_glob.append('*.e2e.test.py')
-    
     if not config.getoption('--run-integr8'):
         collect_ignore_glob.append('*.integr8.test.py')
 
@@ -43,7 +42,7 @@ def _sort_by_test_phase(item: pytest.Item):
     if test_fs_path is None:
         return _TEST_PHASES[None]
 
-    suffixes = set(suffix.lstrip('.') for suffix in test_fs_path.suffixes)
+    suffixes = {suffix.lstrip('.') for suffix in test_fs_path.suffixes}
     maybe_phase_name = suffixes.intersection(_TEST_PHASES)
 
     if maybe_phase_name:

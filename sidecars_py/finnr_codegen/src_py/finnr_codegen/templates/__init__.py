@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import typing
 from textwrap import wrap
 from typing import Literal
 
@@ -10,7 +11,14 @@ from templatey.prebaked.template_configs import trusted_unicon
 
 from finnr._types import DateLike
 from finnr._types import Singleton
-from finnr.currency import Currency
+
+if typing.TYPE_CHECKING:
+    from finnr.currency import Currency
+
+    from finnr_codegen.entrypoints.moneymath import _ArgSeparator
+    from finnr_codegen.entrypoints.moneymath import _ContextKwarg
+    from finnr_codegen.entrypoints.moneymath import _ContextPassthrough
+    from finnr_codegen.entrypoints.moneymath import _LineBreaker
 
 
 @template(trusted_unicon, 'iso_module.templatey.py')
@@ -71,3 +79,57 @@ def _coerce_datelike_to_str(value: DateLike | str) -> str:
         return value
     else:
         return f'date({value.year}, {value.month}, {value.day})'
+
+
+@template(trusted_unicon, 'moneymath_module.templatey.py')
+class MoneymathModuleTemplate:
+    methods: Slot[
+        UnaryMethodTemplate
+        | OverloadedMethodTemplate
+        | BinaryMethodReqScalarTemplate
+        | BinaryMethodReqMoneyTemplate]
+
+
+@template(trusted_unicon, 'overloaded_method.templatey.py')
+class OverloadedMethodTemplate:
+    name: Var[str]
+    passthrough_name: Var[str]
+    bookend_arg_separator: Var[_ArgSeparator]
+    normal_arg_separator: Var[_ArgSeparator]
+    context_kwarg: Var[_ContextKwarg]
+    context_passthrough: Var[_ContextPassthrough]
+    # This is really just a bunch of garbage hacks at this point. Templatey is,
+    # it turns out, not yet well-suited for codegen. The more you know!
+    linebreaker: Var[_LineBreaker]
+    return1: Var[str]
+    return3: Var[str]
+    actiontype_start: Var[str]
+    actiontype_end: Var[str]
+
+
+@template(trusted_unicon, 'unary_method.templatey.py')
+class UnaryMethodTemplate:
+    name: Var[str]
+    action_statement: Var[str]
+    return_type: Var[str]
+    context_kwarg: Var[_ContextKwarg]
+
+
+@template(trusted_unicon, 'binary_method_req_scalar.templatey.py')
+class BinaryMethodReqScalarTemplate:
+    name: Var[str]
+    action_statement: Var[str]
+    return_type: Var[str]
+    context_kwarg: Var[_ContextKwarg]
+    bookend_arg_separator: Var[_ArgSeparator]
+    normal_arg_separator: Var[_ArgSeparator]
+
+
+@template(trusted_unicon, 'binary_method_req_money.templatey.py')
+class BinaryMethodReqMoneyTemplate:
+    name: Var[str]
+    action_statement: Var[str]
+    return_type: Var[str]
+    context_kwarg: Var[_ContextKwarg]
+    bookend_arg_separator: Var[_ArgSeparator]
+    normal_arg_separator: Var[_ArgSeparator]

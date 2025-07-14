@@ -120,6 +120,77 @@ class Currency:
         """
         return self.approx_active_until is None
 
+    def mint(
+            self,
+            amount: Decimal | float | str | tuple[int, Sequence[int], int],
+            *,
+            heal_float: Annotated[
+                bool,
+                ClcNote('''If ``True`` (the default), this will truncate the
+                    resulting decimal amount to the maximum safe float value,
+                    as determined by ``sys.float_info.dig``. Note that this
+                    only has an effect if the passed ``amount`` is a float!
+                    ''')
+                ] = True,
+            quantize_to_minor: Annotated[
+                bool,
+                ClcNote('''If ``True`` (**not** the default), this will
+                    immediately round or "pad" (ie, quantize) the resulting
+                    decimal amount to a single unit of the minor unit of the
+                    currency. For example, ``12.345 EUR`` would be rounded to
+                    ``12.35 EUR``, or ``1.2 EUR`` "padded" to ``1.20 EUR``.
+                    ''')
+                ] = False,
+            rounding: Annotated[
+                str,
+                ClcNote('''If ``quantize_to_minor`` is ``True``, this can be
+                    used to control the rounding behavior of the quantization
+                    operation.
+
+                    Otherwise, this is ignored.''')
+                ] = ROUND_HALF_UP
+            ) -> Money:
+        """Creates a Money instance for the current currency, using the
+        passed amount.
+        """
+        if heal_float and isinstance(amount, float):
+            dec_amount = _heal_float(Decimal(amount))
+        elif isinstance(amount, Decimal):
+            dec_amount = amount
+        else:
+            dec_amount = Decimal(amount)
+
+        if quantize_to_minor:
+            currency_metadata = self._metadata
+            # If this is None, it means either that the currency is continuous
+            # (eg a fictional unit of account), or that the minor unit is
+            # unknown; in both of those cases, we'll skip rounding and simply
+            # use the original dec_amount. Otherwise, we've work to do!
+            if currency_metadata.minor_quantizor is not None:
+                dec_amount = dec_amount.quantize(
+                    currency_metadata.minor_quantizor,
+                    rounding=rounding)
+
+                if not currency_metadata.is_decimal:
+                    # Note that this must be int, or the minor_quantizor
+                    # would be None.
+                    minor_denom = cast(int, self.minor_unit_denominator)
+                    # This seems a little aroundabout, but we're doing it this
+                    # way so that we can respect the passed rounding behavior.
+                    # Otherwise it would probably be faster to do this via mod.
+                    shifted_amount = dec_amount * minor_denom
+                    with localcontext() as ctx:
+                        ctx.rounding = rounding
+                        # Note that the zero here is necessary to keep it a
+                        # decimal, otherwise we'll end up with an int
+                        rounded_shifted_amount = round(shifted_amount, 0)
+
+                    dec_amount = rounded_shifted_amount / minor_denom
+
+        return Money(
+            amount=dec_amount,
+            currency=self)
+
     # TODO (Note that this gets a bit complicated due to Unknowns):
     # def was_active_at(self, date: DateLike) -> bool:
 
@@ -218,43 +289,11 @@ class CurrencySet(frozenset[Currency]):
             exc.add_note('Invalid currency code for this CurrencySet!')
             raise exc
 
-        if heal_float and isinstance(amount, float):
-            dec_amount = _heal_float(Decimal(amount))
-        elif isinstance(amount, Decimal):
-            dec_amount = amount
-        else:
-            dec_amount = Decimal(amount)
-
-        if quantize_to_minor:
-            currency_metadata = currency._metadata
-            # If this is None, it means either that the currency is continuous
-            # (eg a fictional unit of account), or that the minor unit is
-            # unknown; in both of those cases, we'll skip rounding and simply
-            # use the original dec_amount. Otherwise, we've work to do!
-            if currency_metadata.minor_quantizor is not None:
-                dec_amount = dec_amount.quantize(
-                    currency_metadata.minor_quantizor,
-                    rounding=rounding)
-
-                if not currency_metadata.is_decimal:
-                    # Note that this must be int, or the minor_quantizor
-                    # would be None.
-                    minor_denom = cast(int, currency.minor_unit_denominator)
-                    # This seems a little aroundabout, but we're doing it this
-                    # way so that we can respect the passed rounding behavior.
-                    # Otherwise it would probably be faster to do this via mod.
-                    shifted_amount = dec_amount * minor_denom
-                    with localcontext() as ctx:
-                        ctx.rounding = rounding
-                        # Note that the zero here is necessary to keep it a
-                        # decimal, otherwise we'll end up with an int
-                        rounded_shifted_amount = round(shifted_amount, 0)
-
-                    dec_amount = rounded_shifted_amount / minor_denom
-
-        return Money(
-            amount=dec_amount,
-            currency=currency)
+        return currency.mint(
+            amount,
+            heal_float=heal_float,
+            quantize_to_minor=quantize_to_minor,
+            rounding=rounding)
 
     @overload
     def get(self, code: str, default=None) -> Currency | None: ...

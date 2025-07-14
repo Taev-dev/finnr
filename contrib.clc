@@ -3,4 +3,7 @@
 
 > How to run codegen
     If you need to update the iso file, the command to do so is easy. Simply
-    run ``uv run python -m finnr_codegen``.
+    run ``uv run python -m finnr_codegen.entrypoints.iso``.
+
+    The moneymatch file is similar:
+    ``uv run python -m finnr_codegen.entrypoints.moneymath``
