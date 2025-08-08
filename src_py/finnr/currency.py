@@ -281,7 +281,8 @@ class CurrencySet(frozenset[Currency]):
                     Otherwise, this is ignored.''')
                 ] = ROUND_HALF_UP
             ) -> Money:
-        """
+        """Mints a new instance of the currency. Arguments have the same
+        meaning as ``Currency.mint``.
         """
         try:
             currency = self._by_alpha3[code_alpha3.upper()]

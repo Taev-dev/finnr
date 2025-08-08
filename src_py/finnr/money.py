@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import operator
 import typing
+from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP
 from decimal import Decimal
@@ -17,7 +18,7 @@ if typing.TYPE_CHECKING:
 
 
 amount_getter: Annotated[
-    operator.attrgetter[Decimal],
+    Callable[[Money], Decimal],
     ClcNote('''The ``amount_getter`` is a convenience method for use in
         ``min``, ``max``, sorting, etc. Use it instead of defining a lambda
         for every comparison:
