@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 from finnr._types import Singleton
@@ -97,6 +98,110 @@ class TestCurrencySet:
             approx_active_until=None,)})
         result = mint('3.1415', 'MGA', quantize_to_minor=True)
         assert result.amount == Decimal('3.2')
+
+    def test_get_alpha(self):
+        """Getting via the alpha must return the correct currency.
+        """
+        currency1 = Currency(
+            code_alpha3='EUR',
+            code_num=978,
+            minor_unit_denominator=100,
+            entities=frozenset(),
+            name='Euro',
+            approx_active_from=Singleton.UNKNOWN,
+            approx_active_until=None,)
+        currency2 = Currency(
+            code_alpha3='USD',
+            code_num=840,
+            minor_unit_denominator=100,
+            entities=frozenset({
+                'AS', 'BQ', 'EC', 'FM', 'GU', 'HT', 'IO', 'MH', 'MP',
+                'PA', 'PR', 'PW', 'SV', 'TC', 'TL', 'UM', 'US', 'VG', 'VI'}),
+            name='US Dollar',
+            approx_active_from=Singleton.UNKNOWN,
+            approx_active_until=None,)
+        mint = CurrencySet({currency1, currency2})
+
+        result = mint.get(code='EUR')
+
+        assert result is currency1
+
+    def test_get_num(self):
+        """Getting via the numeric must return the correct currency
+        when there is a single correct value for it.
+        """
+        currency1 = Currency(
+            code_alpha3='EUR',
+            code_num=978,
+            minor_unit_denominator=100,
+            entities=frozenset(),
+            name='Euro',
+            approx_active_from=Singleton.UNKNOWN,
+            approx_active_until=None,)
+        currency2 = Currency(
+            code_alpha3='USD',
+            code_num=840,
+            minor_unit_denominator=100,
+            entities=frozenset({
+                'AS', 'BQ', 'EC', 'FM', 'GU', 'HT', 'IO', 'MH', 'MP',
+                'PA', 'PR', 'PW', 'SV', 'TC', 'TL', 'UM', 'US', 'VG', 'VI'}),
+            name='US Dollar',
+            approx_active_from=Singleton.UNKNOWN,
+            approx_active_until=None,)
+        mint = CurrencySet({currency1, currency2})
+
+        result = mint.get(code=978)
+
+        assert result is currency1
+
+    def test_get_num_multiples(self):
+        """Getting via the numeric must return the correct currency
+        when there are multiple correct values for it depending on
+        the given date.
+        """
+        currency1 = Currency(
+            code_alpha3='EUR',
+            code_num=978,
+            minor_unit_denominator=100,
+            entities=frozenset(),
+            name='Euro',
+            approx_active_from=Singleton.UNKNOWN,
+            approx_active_until=None,)
+        currency2 = Currency(
+            code_alpha3='USD',
+            code_num=840,
+            minor_unit_denominator=100,
+            entities=frozenset({
+                'AS', 'BQ', 'EC', 'FM', 'GU', 'HT', 'IO', 'MH', 'MP',
+                'PA', 'PR', 'PW', 'SV', 'TC', 'TL', 'UM', 'US', 'VG', 'VI'}),
+            name='US Dollar',
+            approx_active_from=Singleton.UNKNOWN,
+            approx_active_until=None,)
+        currency3 = Currency(
+            code_alpha3='ZRN',
+            code_num=180,
+            minor_unit_denominator=100,
+            entities=frozenset({
+                'AO'}),
+            name='New Zaire',
+            approx_active_from=date(1993, 1, 1),
+            approx_active_until=date(1999, 6, 30),)
+        currency4 = Currency(
+            code_alpha3='ZRZ',
+            code_num=180,
+            minor_unit_denominator=100,
+            entities=frozenset({
+                'AO'}),
+            name='Zaire',
+            approx_active_from=date(1967, 1, 1),
+            approx_active_until=date(1994, 2, 28),)
+        mint = CurrencySet({currency1, currency2, currency3, currency4})
+
+        result_nodate = mint.get(code=180)
+        result_dated = mint.get(code=180, on_date=date(1989, 11, 9))
+
+        assert result_nodate is currency3
+        assert result_dated is currency4
 
 
 def test_heal_float():

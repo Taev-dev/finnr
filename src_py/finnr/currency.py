@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field
@@ -233,22 +234,39 @@ class CurrencySet(frozenset[Currency]):
     **must** have unique alpha and numeric codes.
     """
     _by_alpha3: dict[str, Currency]
-    _by_num: dict[int, Currency]
+    _by_num: dict[int, list[Currency]]
 
     def __init__(self, *args, **kwargs):
         self._by_alpha3 = alpha_lookup = {}
-        self._by_num = num_lookup = {}
+        self._by_num = num_lookup = defaultdict(list)
 
         for currency in self:
             if currency.code_alpha3 in alpha_lookup:
                 raise ValueError(
-                    'Duplicate currency code!', currency.code_alpha3)
-            if currency.code_num in num_lookup:
-                raise ValueError(
-                    'Duplicate currency code!', currency.code_alpha3)
+                    'Duplicate currency code (alpha)!', currency.code_alpha3)
+
+            # We're using get here because we want to avoid mutation unless
+            # it's going to be added in
+            if (dupes := num_lookup.get(currency.code_num, [])):
+                sortkeys = {
+                    _sortkey_most_recently_active(dupe)
+                    for dupe in dupes}
+                if _sortkey_most_recently_active(currency) in sortkeys:
+                    raise ValueError(
+                        'Duplicate currency code (num) with overlapping '
+                        + 'active dates!',
+                        currency.code_num, currency.code_alpha3)
 
             alpha_lookup[currency.code_alpha3] = currency
-            num_lookup[currency.code_num] = currency
+            num_lookup[currency.code_num].append(currency)
+
+        num_lookup.default_factory = None
+        # This is important! We use this for retrieval, to make sure we always
+        # get the most recently active if no specific date was provided
+        for by_num_list in num_lookup.values():
+            by_num_list.sort(
+                key=_sortkey_most_recently_active,
+                reverse=True)
 
     def __call__(
             self,
@@ -297,23 +315,101 @@ class CurrencySet(frozenset[Currency]):
             rounding=rounding)
 
     @overload
-    def get(self, code: str, default=None) -> Currency | None: ...
+    def get[T](self, code: str, default: T = None) -> Currency | T: ...
     @overload
-    def get(self, code: int, default=None) -> Currency | None: ...
+    def get[T](
+            self,
+            code: int,
+            default: T = None,
+            *,
+            on_date: DateLike | None = None,
+            ) -> Currency | T: ...
 
-    def get(self, code: str | int, default=None) -> Currency | None:
+    def get[T](
+            self,
+            code: str | int,
+            default: T = None,
+            *,
+            on_date: DateLike | None = None,
+            ) -> Currency | T:
         """Finds a currency from the currency set based on either the
         alpha3 or numeric code. This has the same semantics as
         ``dict.get``, in that it will return the provided ``default``
         value if no match is found (and if no explicit default is
         passed, this will return ``None``).
+
+        Note that numeric codes aren't necessarily unique across all
+        time (at least for ISO). As such, if you want to look up a
+        currency based on its numeric code, you should specify a
+        date for clarity. If none is specified, we'll return the
+        currency that was most recently active (which, in most case,
+        will be the currently-active currency with that code).
         """
         if isinstance(code, str):
             return self._by_alpha3.get(code.upper(), default)
+
         elif isinstance(code, int):
-            return self._by_num.get(code, default)
+            if code not in self._by_num:
+                return default
+
+            for_all_nums = self._by_num[code]
+            if on_date is None:
+                return for_all_nums[0]
+
+            else:
+                currency = _get_on_specific_date(for_all_nums, on_date)
+                if currency is None:
+                    return default
+                else:
+                    return currency
+
         else:
             raise TypeError('Code must be either string or integer!', code)
+
+
+def _get_on_specific_date(
+        bynum_list: list[Currency],
+        target_date: DateLike
+        ) -> Currency | None:
+    """Use this to find a currency defined on a particular date. Returns
+    None if there wasn't any there.
+    """
+    for currency in bynum_list:
+        # Note that this relies upon the bynum_list sorting to work!
+        if (
+            currency.approx_active_until is None
+            or currency.approx_active_until is Singleton.UNKNOWN
+            or (
+                _quickcomp_datelike(target_date)
+                <= _quickcomp_datelike(currency.approx_active_until))
+        ):
+            if currency.approx_active_from is Singleton.UNKNOWN:
+                return currency
+            elif (
+                _quickcomp_datelike(target_date)
+                >= _quickcomp_datelike(currency.approx_active_from)
+            ):
+                return currency
+
+
+def _quickcomp_datelike(datelike: DateLike) -> int:
+    """Uses bitshifts to create a quick comparison value for a datelike.
+    """
+    return datelike.day + (datelike.month << 5) + (datelike.year << 9)
+
+
+def _sortkey_most_recently_active(currency: Currency):
+    """Use this as a sort key for date-likes. A value of None is used
+    for "no date yet", and is therefore most recent. A value of
+    "unknown" is interpreted as -1 (ie, before all time).
+    """
+    datelike = currency.approx_active_until
+    if datelike is None:
+        return (float('inf'), float('inf'), float('inf'))
+    if datelike is Singleton.UNKNOWN:
+        return (-1, -1, -1)
+    else:
+        return (datelike.year, datelike.month, datelike.day)
 
 
 def heal_float(dec: Decimal) -> Decimal:
