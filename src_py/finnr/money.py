@@ -33,10 +33,15 @@ amount_getter: Annotated[
 
 @dataclass(slots=True)
 class Money(MoneyMathImpl):
-    """Note that this might be theoretically nonsensical, for
-    example, including fractional cents of the USD. This can be
-    rounded either fractionally or decimally via the associated
-    methods.
+    """``Money`` objects, in addition to specifying an explicit
+    amount and currency, also include a number of math functions
+    that match your intuitive expectation of how money math actually
+    works.
+
+    Note that monetary amounts are not limited in precision to the
+    minor denominator of their associated currency. To round the amount
+    to the nearest unit, call ``round_to_major`` or ``round_to_minor``,
+    both of which will return a new ``Money`` object.
     """
     amount: Decimal
     currency: Currency

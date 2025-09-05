@@ -22,6 +22,14 @@ from finnr.money import Money
 
 @dataclass(slots=True, frozen=True)
 class Currency:
+    """Currency objects contain all of the relevant metadata associated
+    with a particular currency -- for example, the Euro. Generally, they
+    are intended to be grouped together into a ``CurrencySet`` for use.
+
+    Note that all ISO-4217 currencies are included in the ``finnr.iso``
+    module as a single currency set, colloquially known as the
+    [[iso mint](&'docnote/finnr.iso:mint')].
+    """
     code_alpha3: Annotated[
         str,
         ClcNote('''For all ISO currencies, this is the ISO 4217 alpha-3
